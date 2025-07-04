@@ -3,7 +3,7 @@ package com.tienda.ropa.service;
 import com.tienda.ropa.model.Category;
 import com.tienda.ropa.model.Product;
 import com.tienda.ropa.model.User;
-// Imports PDF
+// PDF
 import com.itextpdf.kernel.pdf.PdfDocument;
 import com.itextpdf.kernel.pdf.PdfWriter;
 import com.itextpdf.layout.Document;
@@ -11,8 +11,6 @@ import com.itextpdf.layout.element.Paragraph;
 import com.itextpdf.layout.element.Table;
 import com.itextpdf.layout.element.Cell;
 import com.itextpdf.layout.properties.TextAlignment;
-
-// IMPORTS APACHE POI - CRÍTICOS
 import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Row;
