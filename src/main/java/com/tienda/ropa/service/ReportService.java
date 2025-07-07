@@ -1,26 +1,19 @@
 package com.tienda.ropa.service;
 
-import com.tienda.ropa.model.Category;
-import com.tienda.ropa.model.Product;
-import com.tienda.ropa.model.User;
-// PDF
 import com.itextpdf.kernel.pdf.PdfDocument;
 import com.itextpdf.kernel.pdf.PdfWriter;
 import com.itextpdf.layout.Document;
+import com.itextpdf.layout.element.Cell;
 import com.itextpdf.layout.element.Paragraph;
 import com.itextpdf.layout.element.Table;
-import com.itextpdf.layout.element.Cell;
 import com.itextpdf.layout.properties.TextAlignment;
-import org.apache.poi.ss.usermodel.Workbook;
-import org.apache.poi.ss.usermodel.Sheet;
-import org.apache.poi.ss.usermodel.Row;
-import org.apache.poi.ss.usermodel.Cell;
-import org.apache.poi.ss.usermodel.CellStyle;
-import org.apache.poi.ss.usermodel.Font;
-import org.apache.poi.xssf.usermodel.XSSFWorkbook;
-
+import com.tienda.ropa.model.Category;
+import com.tienda.ropa.model.Product;
+import com.tienda.ropa.model.User;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -40,115 +33,6 @@ public class ReportService {
     private final UserService userService;
 
     @Transactional(readOnly = true)
-    public byte[] generateUsersExcelReport() throws IOException {
-        Workbook workbook = new XSSFWorkbook();
-        Sheet sheet = workbook.createSheet("Usuarios");
-
-        // Estilo para headers
-        CellStyle headerStyle = workbook.createCellStyle();
-        Font headerFont = workbook.createFont();
-        headerFont.setBold(true);
-        headerStyle.setFont(headerFont);
-
-        // Headers - ARRAY CORREGIDO
-        Row headerRow = sheet.createRow(0);
-        String[] headers = {"ID", "Usuario", "Email", "Rol", "Estado", "Bloqueado", "Fecha Registro"};
-        
-        // BUCLE FOR CORREGIDO - El problema estaba aquí
-        for (int i = 0; i < headers.length; i++) {
-            Cell cell = headerRow.createCell(i);
-            cell.setCellValue(headers[i]);
-            cell.setCellStyle(headerStyle);
-        }
-
-        // Datos
-        List<User> users = userService.getAllUsers();
-        int rowNum = 1;
-        
-        for (User user : users) {
-            Row row = sheet.createRow(rowNum++);
-            
-            row.createCell(0).setCellValue(user.getId());
-            row.createCell(1).setCellValue(user.getUsername());
-            row.createCell(2).setCellValue(user.getEmail());
-            
-            String role = user.getRoles().stream()
-                    .map(r -> r.getName().name())
-                    .findFirst()
-                    .orElse("ROLE_USER");
-            row.createCell(3).setCellValue(role);
-            
-            row.createCell(4).setCellValue(user.getEnabled() ? "Habilitado" : "Deshabilitado");
-            row.createCell(5).setCellValue(user.getLocked() ? "Bloqueado" : "Desbloqueado");
-            row.createCell(6).setCellValue(user.getCreatedAt().format(DateTimeFormatter.ofPattern("dd/MM/yyyy")));
-        }
-
-        // Auto-ajustar columnas
-        for (int i = 0; i < headers.length; i++) {
-            sheet.autoSizeColumn(i);
-        }
-
-        ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        workbook.write(baos);
-        workbook.close();
-        
-        log.info("Reporte Excel de usuarios generado con {} registros", users.size());
-        return baos.toByteArray();
-    }
-
-    @Transactional(readOnly = true)
-    public byte[] generateProductsExcelReport() throws IOException {
-        Workbook workbook = new XSSFWorkbook();
-        Sheet sheet = workbook.createSheet("Productos");
-
-        // Estilo para headers
-        CellStyle headerStyle = workbook.createCellStyle();
-        Font headerFont = workbook.createFont();
-        headerFont.setBold(true);
-        headerStyle.setFont(headerFont);
-
-        // Headers
-        Row headerRow = sheet.createRow(0);
-        String[] headers = {"ID", "Nombre", "Descripción", "Categoría", "Precio", "Stock", "Estado", "Fecha Creación"};
-        
-        for (int i = 0; i < headers.length; i++) {
-            Cell cell = headerRow.createCell(i);
-            cell.setCellValue(headers[i]);
-            cell.setCellStyle(headerStyle);
-        }
-
-        // Datos
-        List<Product> products = productService.getAllProducts();
-        int rowNum = 1;
-        
-        for (Product product : products) {
-            Row row = sheet.createRow(rowNum++);
-            
-            row.createCell(0).setCellValue(product.getId());
-            row.createCell(1).setCellValue(product.getName());
-            row.createCell(2).setCellValue(product.getDescription() != null ? product.getDescription() : "");
-            row.createCell(3).setCellValue(product.getCategory().getName());
-            row.createCell(4).setCellValue(product.getPrice().doubleValue());
-            row.createCell(5).setCellValue(product.getStock());
-            row.createCell(6).setCellValue(product.getActive() ? "Activo" : "Inactivo");
-            row.createCell(7).setCellValue(product.getCreatedAt().format(DateTimeFormatter.ofPattern("dd/MM/yyyy")));
-        }
-
-        // Auto-ajustar columnas
-        for (int i = 0; i < headers.length; i++) {
-            sheet.autoSizeColumn(i);
-        }
-
-        ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        workbook.write(baos);
-        workbook.close();
-        
-        log.info("Reporte Excel de productos generado con {} registros", products.size());
-        return baos.toByteArray();
-    }
-
-    // RESTO DE MÉTODOS PDF...
-    @Transactional(readOnly = true)
     public byte[] generateProductsPdfReport() throws Exception {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         PdfWriter writer = new PdfWriter(baos);
@@ -165,7 +49,7 @@ public class ReportService {
                 .setFontSize(10));
 
         List<Product> products = productService.getAllProducts();
-        
+
         Table table = new Table(new float[]{2, 3, 2, 1, 1, 2});
         table.setWidth(100);
 
@@ -199,6 +83,52 @@ public class ReportService {
     }
 
     @Transactional(readOnly = true)
+    public byte[] generateProductsExcelReport() throws IOException {
+        Workbook workbook = new XSSFWorkbook();
+        Sheet sheet = workbook.createSheet("Productos");
+
+        CellStyle headerStyle = workbook.createCellStyle();
+        Font headerFont = workbook.createFont();
+        headerFont.setBold(true);
+        headerStyle.setFont(headerFont);
+
+        Row headerRow = sheet.createRow(0);
+        String[] headers = {"ID", "Nombre", "Descripción", "Categoría", "Precio", "Stock", "Estado", "Fecha Creación"};
+
+        for (int i = 0; i < headers.length; i++) {
+            org.apache.poi.ss.usermodel.Cell cell = headerRow.createCell(i);
+            cell.setCellValue(headers[i]);
+            cell.setCellStyle(headerStyle);
+        }
+
+        List<Product> products = productService.getAllProducts();
+        int rowNum = 1;
+
+        for (Product product : products) {
+            Row row = sheet.createRow(rowNum++);
+            row.createCell(0).setCellValue(product.getId());
+            row.createCell(1).setCellValue(product.getName());
+            row.createCell(2).setCellValue(product.getDescription() != null ? product.getDescription() : "");
+            row.createCell(3).setCellValue(product.getCategory().getName());
+            row.createCell(4).setCellValue(product.getPrice().doubleValue());
+            row.createCell(5).setCellValue(product.getStock());
+            row.createCell(6).setCellValue(product.getActive() ? "Activo" : "Inactivo");
+            row.createCell(7).setCellValue(product.getCreatedAt().format(DateTimeFormatter.ofPattern("dd/MM/yyyy")));
+        }
+
+        for (int i = 0; i < headers.length; i++) {
+            sheet.autoSizeColumn(i);
+        }
+
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        workbook.write(baos);
+        workbook.close();
+
+        log.info("Reporte Excel de productos generado con {} registros", products.size());
+        return baos.toByteArray();
+    }
+
+    @Transactional(readOnly = true)
     public byte[] generateCategoriesPdfReport() throws Exception {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         PdfWriter writer = new PdfWriter(baos);
@@ -215,7 +145,7 @@ public class ReportService {
                 .setFontSize(10));
 
         List<Category> categories = categoryService.getAllCategories();
-        
+
         Table table = new Table(new float[]{1, 3, 4, 1, 1});
         table.setWidth(100);
 
@@ -246,6 +176,55 @@ public class ReportService {
     }
 
     @Transactional(readOnly = true)
+    public byte[] generateUsersExcelReport() throws IOException {
+        Workbook workbook = new XSSFWorkbook();
+        Sheet sheet = workbook.createSheet("Usuarios");
+
+        CellStyle headerStyle = workbook.createCellStyle();
+        Font headerFont = workbook.createFont();
+        headerFont.setBold(true);
+        headerStyle.setFont(headerFont);
+
+        Row headerRow = sheet.createRow(0);
+        String[] headers = {"ID", "Usuario", "Email", "Rol", "Estado", "Bloqueado", "Fecha Registro"};
+
+        for (int i = 0; i < headers.length; i++) {
+            org.apache.poi.ss.usermodel.Cell cell = headerRow.createCell(i);
+            cell.setCellValue(headers[i]);
+            cell.setCellStyle(headerStyle);
+        }
+
+        List<User> users = userService.getAllUsers();
+        int rowNum = 1;
+
+        for (User user : users) {
+            Row row = sheet.createRow(rowNum++);
+            row.createCell(0).setCellValue(user.getId());
+            row.createCell(1).setCellValue(user.getUsername());
+            row.createCell(2).setCellValue(user.getEmail());
+            String role = user.getRoles().stream()
+                    .map(r -> r.getName().name())
+                    .findFirst()
+                    .orElse("ROLE_USER");
+            row.createCell(3).setCellValue(role);
+            row.createCell(4).setCellValue(user.getEnabled() ? "Habilitado" : "Deshabilitado");
+            row.createCell(5).setCellValue(user.getLocked() ? "Bloqueado" : "Desbloqueado");
+            row.createCell(6).setCellValue(user.getCreatedAt().format(DateTimeFormatter.ofPattern("dd/MM/yyyy")));
+        }
+
+        for (int i = 0; i < headers.length; i++) {
+            sheet.autoSizeColumn(i);
+        }
+
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        workbook.write(baos);
+        workbook.close();
+
+        log.info("Reporte Excel de usuarios generado con {} registros", users.size());
+        return baos.toByteArray();
+    }
+
+    @Transactional(readOnly = true)
     public byte[] generateInventoryReport() throws Exception {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         PdfWriter writer = new PdfWriter(baos);
@@ -262,7 +241,7 @@ public class ReportService {
                 .setFontSize(10));
 
         List<Product> lowStockProducts = productService.getLowStockProducts(10);
-        
+
         document.add(new Paragraph("Productos con Bajo Stock (menor a 10 unidades)")
                 .setFontSize(14));
 
@@ -282,7 +261,9 @@ public class ReportService {
         }
 
         document.add(lowStockTable);
+
         document.close();
+        log.info("Reporte PDF de inventario generado con {} productos en bajo stock", lowStockProducts.size());
         return baos.toByteArray();
     }
 }
