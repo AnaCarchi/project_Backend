@@ -1,12 +1,12 @@
 package com.tienda.ropa.controller;
 
-import com.clothingstore.dto.AuthResponse;
-import com.clothingstore.dto.LoginRequest;
-import com.clothingstore.dto.RegisterRequest;
-import com.clothingstore.model.Role;
-import com.clothingstore.model.User;
-import com.clothingstore.service.UserService;
-import com.clothingstore.util.JwtUtil;
+import com.tienda.ropa.dto.AuthResponse;
+import com.tienda.ropa.dto.LoginRequest;
+import com.tienda.ropa.dto.RegisterRequest;
+import com.tienda.ropa.model.Role;
+import com.tienda.ropa.model.User;
+import com.tienda.ropa.service.UserService;
+import com.tienda.ropa.util.JwtUtil;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -23,7 +23,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 @RestController
-@RequestMapping("/auth")
+@RequestMapping("/api/auth")
 @RequiredArgsConstructor
 @Slf4j
 @CrossOrigin(origins = "*")
