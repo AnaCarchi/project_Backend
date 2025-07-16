@@ -20,4 +20,7 @@ public class RegisterRequest {
     private String password;
     
     private String role; // "USER" o "ADMIN"
+    
+    // Código especial para crear administradores
+    private String adminCode;
 }

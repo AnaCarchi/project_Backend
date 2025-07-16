@@ -2,7 +2,6 @@ package com.tienda.ropa.config;
 
 import com.tienda.ropa.model.Role;
 import com.tienda.ropa.repository.RoleRepository;
-import com.tienda.ropa.service.UserService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.CommandLineRunner;
@@ -15,14 +14,13 @@ import org.springframework.transaction.annotation.Transactional;
 public class DataInitializer implements CommandLineRunner {
 
     private final RoleRepository roleRepository;
-    private final UserService userService;
 
     @Override
     @Transactional
     public void run(String... args) throws Exception {
         try {
             loadRoles();
-            createDefaultAdmin();
+            log.info("Inicialización completada - Roles creados. Administradores se crean vía registro con código.");
         } catch (Exception e) {
             log.error("Error durante la inicialización de datos: {}", e.getMessage());
         }
@@ -48,6 +46,8 @@ public class DataInitializer implements CommandLineRunner {
         }
     }
 
+    /*
+    // MÉTODO COMENTADO - Para crear admin por defecto si es necesario
     private void createDefaultAdmin() {
         try {
             if (userService.getUserByUsername("admin").isEmpty()) {
@@ -65,4 +65,5 @@ public class DataInitializer implements CommandLineRunner {
             log.warn("No se pudo crear el usuario administrador por defecto: {}", e.getMessage());
         }
     }
+    */
 }
