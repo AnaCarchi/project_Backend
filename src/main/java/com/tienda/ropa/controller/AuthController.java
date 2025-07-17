@@ -23,7 +23,9 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -38,17 +40,17 @@ public class AuthController {
     private final UserService userService;
     private final JwtUtil jwtUtil;
 
-    // CÓDIGOS DE EJEMPLO CONFIGURABLES
-    @Value("${app.admin-code:MiTienda_Admin_2024#}")
-    private String adminSecretCode;
+    // MEJORADO: Códigos configurables desde properties
+    @Value("${app.admin-codes:TIENDA2024,MiTienda_Admin_2024#,CATALOGO_ADMIN_2024!}")
+    private String adminCodesProperty;
     
     @Value("${app.admin-code-hint-enabled:true}")
     private boolean adminCodeHintEnabled;
     
-    @Value("${app.admin-code-max-attempts:3}")
+    @Value("${app.admin-code-max-attempts:5}")
     private int maxFailedAttempts;
     
-    @Value("${app.admin-code-lockout-minutes:15}")
+    @Value("${app.admin-code-lockout-minutes:30}")
     private int lockoutMinutes;
 
     // Seguimiento de intentos fallidos por IP
@@ -87,9 +89,11 @@ public class AuthController {
             return ResponseEntity.ok(authResponse);
 
         } catch (DisabledException e) {
+            log.warn("Usuario deshabilitado intentó hacer login: {}", loginRequest.getUsername());
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(createErrorResponse("Usuario deshabilitado"));
         } catch (BadCredentialsException e) {
+            log.warn("Credenciales inválidas para usuario: {}", loginRequest.getUsername());
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(createErrorResponse("Credenciales inválidas"));
         } catch (Exception e) {
@@ -117,6 +121,7 @@ public class AuthController {
                     long minutesLeft = lockoutMinutes - 
                         java.time.Duration.between(attempt.lastAttempt, LocalDateTime.now()).toMinutes();
                     
+                    log.warn("IP bloqueada por intentos fallidos: {}", clientIp);
                     return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
                             .body(createErrorResponse(
                                 String.format("Demasiados intentos fallidos. Intenta de nuevo en %d minutos.", 
@@ -174,6 +179,7 @@ public class AuthController {
             return ResponseEntity.status(HttpStatus.CREATED).body(authResponse);
 
         } catch (RuntimeException e) {
+            log.error("Error en registro - RuntimeException: {}", e.getMessage());
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(createErrorResponse(e.getMessage()));
         } catch (Exception e) {
@@ -215,24 +221,23 @@ public class AuthController {
             }
 
         } catch (Exception e) {
+            log.error("Error validando token: {}", e.getMessage());
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(createErrorResponse("Token inválido o expirado"));
         }
     }
 
-    // ENDPOINT PARA OBTENER INFORMACIÓN DEL CÓDIGO (DESARROLLO)
+    // Endpoint para obtener información del código 
     @GetMapping("/admin-code-info")
     public ResponseEntity<?> getAdminCodeInfo() {
         Map<String, Object> response = new HashMap<>();
         
         if (adminCodeHintEnabled) {
+            List<String> codes = Arrays.asList(adminCodesProperty.split(","));
             response.put("hint", "Códigos válidos para desarrollo");
-            response.put("codes", new String[]{
-                "TIENDA2024",
-                "MiTienda_Admin_2024#", 
-                "CATALOGO_ADMIN_2024!"
-            });
+            response.put("codes", codes);
             response.put("note", "Para producción, contacta al administrador del sistema");
+            response.put("warning", "Este endpoint debe deshabilitarse en producción");
         } else {
             response.put("message", "Contacta al administrador del sistema para obtener el código");
         }
@@ -240,18 +245,37 @@ public class AuthController {
         return ResponseEntity.ok(response);
     }
 
-    // MÉTODOS DE SEGURIDAD PARA CÓDIGOS
+    // Health check endpoint
+    @GetMapping("/health")
+    public ResponseEntity<?> healthCheck() {
+        Map<String, Object> health = new HashMap<>();
+        health.put("status", "UP");
+        health.put("timestamp", LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+        health.put("service", "Authentication Service");
+        health.put("version", "1.0.0");
+        return ResponseEntity.ok(health);
+    }
 
+    //  Endpoint para obtener estadísticas de autenticación
+    @GetMapping("/stats")
+    public ResponseEntity<?> getAuthStats() {
+        Map<String, Object> stats = new HashMap<>();
+        stats.put("timestamp", LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+        stats.put("totalFailedAttempts", failedAttempts.size());
+        stats.put("blockedIps", failedAttempts.entrySet().stream()
+                .filter(entry -> isIpBlocked(entry.getKey()))
+                .count());
+        stats.put("maxFailedAttempts", maxFailedAttempts);
+        stats.put("lockoutMinutes", lockoutMinutes);
+        return ResponseEntity.ok(stats);
+    }
+
+    // Método de validación de códigos configurables
     private boolean isValidAdminCode(String providedCode) {
-        // 🔐 CÓDIGOS VÁLIDOS PARA CREAR ADMINISTRADORES
-        String[] validCodes = {
-            "TIENDA2024",                      // ✅ Código simple 
-            "MiTienda_Admin_2024#",            // ✅ Código personalizable
-            "CATALOGO_ADMIN_2024!",            // ✅ Código mediano
-        };
+        List<String> validCodes = Arrays.asList(adminCodesProperty.split(","));
         
         for (String validCode : validCodes) {
-            if (validCode.equals(providedCode)) {
+            if (validCode.trim().equals(providedCode)) {
                 return true;
             }
         }
@@ -262,9 +286,10 @@ public class AuthController {
         FailedAttempt attempt = failedAttempts.computeIfAbsent(ip, k -> new FailedAttempt());
         attempt.count++;
         attempt.lastAttempt = LocalDateTime.now();
-        attempt.lastUsername = username;
+        attempt.lastUsername = username; // Ahora sí se usa
         
         log.warn("Intento fallido #{} para IP: {} - Usuario: {}", attempt.count, ip, username);
+        log.debug("Último usuario que falló desde IP {}: {}", ip, attempt.getLastUsername());
     }
 
     private boolean isIpBlocked(String ip) {
@@ -284,6 +309,7 @@ public class AuthController {
 
     private void clearFailedAttempts(String ip) {
         failedAttempts.remove(ip);
+        log.info("Intentos fallidos limpiados para IP: {}", ip);
     }
 
     private String getClientIp(HttpServletRequest request) {
@@ -308,10 +334,15 @@ public class AuthController {
         return error;
     }
 
-    // Clase interna para seguimiento de intentos fallidos
+    // Clase interna para seguimiento de intentos fallidos 
     private static class FailedAttempt {
         int count = 0;
         LocalDateTime lastAttempt;
-        String lastUsername;
+        String lastUsername = "";
+        
+        // Getter para usar el campo lastUsername
+        public String getLastUsername() {
+            return lastUsername != null ? lastUsername : "";
+        }
     }
 }
