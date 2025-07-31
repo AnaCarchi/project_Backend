@@ -36,9 +36,18 @@ public class FileService {
 
     /**
      * Guarda un archivo en el sistema de archivos
+     * Por defecto usa el subdirectorio 'products'
      */
     public String saveFile(MultipartFile file) throws IOException {
+        return saveFile(file, "products");
+    }
+
+    /**
+     * Guarda un archivo en el sistema de archivos con subdirectorio específico
+     */
+    public String saveFile(MultipartFile file, String subdirectory) throws IOException {
         log.info("=== INICIANDO GUARDADO DE ARCHIVO ===");
+        log.info("Subdirectorio: {}", subdirectory);
         log.info("Archivo recibido:");
         log.info("  - Nombre original: {}", file.getOriginalFilename());
         log.info("  - Tamaño: {} bytes ({} KB)", file.getSize(), file.getSize() / 1024);
@@ -54,11 +63,11 @@ public class FileService {
         Path uploadPath = createUploadDirectory();
         log.info("Directorio de upload: {}", uploadPath.toAbsolutePath());
         
-        // Crear subdirectorio para productos
-        Path productsPath = uploadPath.resolve("products");
-        if (!Files.exists(productsPath)) {
-            Files.createDirectories(productsPath);
-            log.info("Subdirectorio 'products' creado: {}", productsPath);
+        // Crear subdirectorio específico
+        Path subDirectoryPath = uploadPath.resolve(subdirectory);
+        if (!Files.exists(subDirectoryPath)) {
+            Files.createDirectories(subDirectoryPath);
+            log.info("Subdirectorio '{}' creado: {}", subdirectory, subDirectoryPath);
         }
 
         // Validar archivo
@@ -77,7 +86,7 @@ public class FileService {
         
         try {
             // Ruta completa donde se guardará el archivo
-            Path targetLocation = productsPath.resolve(uniqueFileName);
+            Path targetLocation = subDirectoryPath.resolve(uniqueFileName);
             log.info("Guardando en: {}", targetLocation.toAbsolutePath());
             
             // Copiar archivo
@@ -89,8 +98,8 @@ public class FileService {
                 log.info("=== ARCHIVO GUARDADO EXITOSAMENTE ===");
                 log.info("  - Ubicación: {}", targetLocation.toAbsolutePath());
                 log.info("  - Tamaño verificado: {} bytes", savedFileSize);
-                log.info("  - URL relativa: /uploads/products/{}", uniqueFileName);
-                log.info("  - URL completa: http://localhost:8080/uploads/products/{}", uniqueFileName);
+                log.info("  - URL relativa: /uploads/{}/{}", subdirectory, uniqueFileName);
+                log.info("  - URL completa: http://localhost:8080/uploads/{}/{}", subdirectory, uniqueFileName);
                 
                 // Verificar integridad del archivo
                 if (savedFileSize != file.getSize()) {
@@ -104,7 +113,7 @@ public class FileService {
             }
             
             // Retornar path relativo para almacenar en BD
-            String relativePath = "products/" + uniqueFileName;
+            String relativePath = subdirectory + "/" + uniqueFileName;
             log.info("Path relativo retornado: {}", relativePath);
             return relativePath;
             
@@ -112,6 +121,27 @@ public class FileService {
             log.error("Error al guardar archivo '{}': {}", originalFilename, ex.getMessage());
             throw new IOException("No se pudo guardar el archivo: " + ex.getMessage(), ex);
         }
+    }
+
+    /**
+     * Método específico para guardar imágenes de productos
+     */
+    public String saveProductImage(MultipartFile file) throws IOException {
+        return saveFile(file, "products");
+    }
+
+    /**
+     * Método específico para guardar imágenes de categorías
+     */
+    public String saveCategoryImage(MultipartFile file) throws IOException {
+        return saveFile(file, "categories");
+    }
+
+    /**
+     * Método específico para guardar imágenes de perfiles
+     */
+    public String saveProfileImage(MultipartFile file) throws IOException {
+        return saveFile(file, "profiles");
     }
 
     /**
@@ -180,6 +210,38 @@ public class FileService {
             
         } catch (IOException ex) {
             log.error("Error al eliminar archivo '{}': {}", fileName, ex.getMessage());
+        }
+    }
+
+    /**
+     * Mueve un archivo de un subdirectorio a otro
+     */
+    public String moveFile(String currentFileName, String fromSubdir, String toSubdir) throws IOException {
+        try {
+            Path uploadPath = Paths.get(uploadDir).toAbsolutePath().normalize();
+            Path currentPath = uploadPath.resolve(fromSubdir).resolve(currentFileName);
+            
+            if (!Files.exists(currentPath)) {
+                throw new IOException("Archivo origen no existe: " + currentPath);
+            }
+            
+            // Crear directorio destino si no existe
+            Path destDir = uploadPath.resolve(toSubdir);
+            if (!Files.exists(destDir)) {
+                Files.createDirectories(destDir);
+            }
+            
+            Path destPath = destDir.resolve(currentFileName);
+            Files.move(currentPath, destPath, StandardCopyOption.REPLACE_EXISTING);
+            
+            String newRelativePath = toSubdir + "/" + currentFileName;
+            log.info("Archivo movido de '{}' a '{}'", fromSubdir + "/" + currentFileName, newRelativePath);
+            
+            return newRelativePath;
+            
+        } catch (IOException ex) {
+            log.error("Error moviendo archivo de '{}' a '{}': {}", fromSubdir, toSubdir, ex.getMessage());
+            throw ex;
         }
     }
 
@@ -302,6 +364,8 @@ public class FileService {
                 if (!Files.exists(subDirPath)) {
                     Files.createDirectories(subDirPath);
                     log.info("Subdirectorio creado: {}", subDirPath);
+                } else {
+                    log.info("Subdirectorio ya existe: {}", subDirPath);
                 }
             }
             
@@ -316,6 +380,21 @@ public class FileService {
             long freeSpace = uploadPath.toFile().getFreeSpace();
             log.info("  - Espacio libre: {} MB", freeSpace / (1024 * 1024));
             log.info("  - Directorio escribible: {}", Files.isWritable(uploadPath));
+            
+            // Contar archivos existentes por subdirectorio
+            for (String subDir : subdirectories) {
+                Path subDirPath = uploadPath.resolve(subDir);
+                if (Files.exists(subDirPath)) {
+                    try {
+                        long fileCount = Files.list(subDirPath)
+                            .filter(Files::isRegularFile)
+                            .count();
+                        log.info("  - Archivos en {}: {}", subDir, fileCount);
+                    } catch (IOException e) {
+                        log.warn("  - No se pudo contar archivos en {}: {}", subDir, e.getMessage());
+                    }
+                }
+            }
             
         } catch (Exception e) {
             log.error("Error inicializando FileService: {}", e.getMessage());
@@ -348,6 +427,15 @@ public class FileService {
                 info.put("lastModified", Files.getLastModifiedTime(filePath).toString());
                 info.put("isReadable", Files.isReadable(filePath));
                 info.put("url", getFileUrl(fileName));
+                
+                // Determinar subdirectorio
+                String subdirectory = "unknown";
+                if (fileName.startsWith("products/")) subdirectory = "products";
+                else if (fileName.startsWith("categories/")) subdirectory = "categories";
+                else if (fileName.startsWith("profiles/")) subdirectory = "profiles";
+                else if (fileName.startsWith("temp/")) subdirectory = "temp";
+                
+                info.put("subdirectory", subdirectory);
             } else {
                 info.put("exists", false);
                 info.put("fileName", fileName);
@@ -391,22 +479,40 @@ public class FileService {
                 health.put("usedSpaceMB", usedSpace / (1024 * 1024));
                 health.put("freeSpacePercent", (freeSpace * 100.0) / totalSpace);
                 
-                // Conteo de archivos
-                Path productsPath = uploadPath.resolve("products");
-                if (Files.exists(productsPath)) {
-                    long fileCount = Files.list(productsPath)
-                        .filter(Files::isRegularFile)
-                        .count();
-                    health.put("productFilesCount", fileCount);
-                } else {
-                    health.put("productFilesCount", 0);
+                // Conteo de archivos por subdirectorio
+                java.util.Map<String, Long> fileCounts = new java.util.HashMap<>();
+                String[] subdirectories = {"products", "categories", "profiles", "temp"};
+                
+                for (String subDir : subdirectories) {
+                    Path subDirPath = uploadPath.resolve(subDir);
+                    if (Files.exists(subDirPath)) {
+                        try {
+                            long fileCount = Files.list(subDirPath)
+                                .filter(Files::isRegularFile)
+                                .count();
+                            fileCounts.put(subDir, fileCount);
+                        } catch (IOException e) {
+                            fileCounts.put(subDir, 0L);
+                        }
+                    } else {
+                        fileCounts.put(subDir, 0L);
+                    }
                 }
+                
+                health.put("fileCountsByDirectory", fileCounts);
+                
+                // Total de archivos
+                long totalFiles = fileCounts.values().stream().mapToLong(Long::longValue).sum();
+                health.put("totalFiles", totalFiles);
                 
                 // Estado general
                 boolean healthy = Files.isWritable(uploadPath) && 
                                 freeSpace > (100 * 1024 * 1024); // 100MB mínimo
                 health.put("healthy", healthy);
                 health.put("status", healthy ? "UP" : "DOWN");
+                
+                // Información adicional para debugging
+                health.put("subdirectoriesStatus", checkSubdirectoriesStatus(uploadPath, subdirectories));
                 
             } else {
                 health.put("healthy", false);
@@ -421,5 +527,177 @@ public class FileService {
         }
         
         return health;
+    }
+
+    /**
+     * Verifica el estado de los subdirectorios
+     */
+    private java.util.Map<String, java.util.Map<String, Object>> checkSubdirectoriesStatus(Path uploadPath, String[] subdirectories) {
+        java.util.Map<String, java.util.Map<String, Object>> subdirStatus = new java.util.HashMap<>();
+        
+        for (String subDir : subdirectories) {
+            java.util.Map<String, Object> status = new java.util.HashMap<>();
+            Path subDirPath = uploadPath.resolve(subDir);
+            
+            status.put("exists", Files.exists(subDirPath));
+            status.put("writable", Files.exists(subDirPath) && Files.isWritable(subDirPath));
+            status.put("readable", Files.exists(subDirPath) && Files.isReadable(subDirPath));
+            status.put("path", subDirPath.toString());
+            
+            try {
+                if (Files.exists(subDirPath)) {
+                    long fileCount = Files.list(subDirPath)
+                        .filter(Files::isRegularFile)
+                        .count();
+                    status.put("fileCount", fileCount);
+                    
+                    // Calcular tamaño total del directorio
+                    long totalSize = Files.walk(subDirPath)
+                        .filter(Files::isRegularFile)
+                        .mapToLong(p -> {
+                            try {
+                                return Files.size(p);
+                            } catch (IOException e) {
+                                return 0;
+                            }
+                        })
+                        .sum();
+                    
+                    status.put("totalSizeBytes", totalSize);
+                    status.put("totalSizeMB", totalSize / (1024 * 1024));
+                } else {
+                    status.put("fileCount", 0);
+                    status.put("totalSizeBytes", 0);
+                    status.put("totalSizeMB", 0);
+                }
+            } catch (IOException e) {
+                status.put("error", e.getMessage());
+                status.put("fileCount", 0);
+                status.put("totalSizeBytes", 0);
+                status.put("totalSizeMB", 0);
+            }
+            
+            subdirStatus.put(subDir, status);
+        }
+        
+        return subdirStatus;
+    }
+
+    /**
+     * Limpia archivos temporales antiguos
+     */
+    public void cleanupTempFiles() {
+        try {
+            Path tempPath = Paths.get(uploadDir).resolve("temp");
+            if (!Files.exists(tempPath)) {
+                return;
+            }
+            
+            log.info("Iniciando limpieza de archivos temporales...");
+            
+            // Eliminar archivos más antiguos de 24 horas
+            long cutoffTime = System.currentTimeMillis() - (24 * 60 * 60 * 1000);
+            
+            Files.list(tempPath)
+                .filter(Files::isRegularFile)
+                .filter(path -> {
+                    try {
+                        return Files.getLastModifiedTime(path).toMillis() < cutoffTime;
+                    } catch (IOException e) {
+                        return false;
+                    }
+                })
+                .forEach(path -> {
+                    try {
+                        Files.delete(path);
+                        log.debug("Archivo temporal eliminado: {}", path.getFileName());
+                    } catch (IOException e) {
+                        log.warn("No se pudo eliminar archivo temporal: {}", path.getFileName());
+                    }
+                });
+                
+            log.info("Limpieza de archivos temporales completada");
+            
+        } catch (IOException e) {
+            log.error("Error durante limpieza de archivos temporales: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * Obtiene estadísticas de uso de almacenamiento
+     */
+    public java.util.Map<String, Object> getStorageStatistics() {
+        java.util.Map<String, Object> stats = new java.util.HashMap<>();
+        
+        try {
+            Path uploadPath = Paths.get(uploadDir).toAbsolutePath().normalize();
+            
+            if (!Files.exists(uploadPath)) {
+                stats.put("error", "Upload directory does not exist");
+                return stats;
+            }
+            
+            String[] subdirectories = {"products", "categories", "profiles", "temp"};
+            long totalFiles = 0;
+            long totalSize = 0;
+            
+            java.util.Map<String, java.util.Map<String, Object>> directoryStats = new java.util.HashMap<>();
+            
+            for (String subDir : subdirectories) {
+                Path subDirPath = uploadPath.resolve(subDir);
+                java.util.Map<String, Object> dirStats = new java.util.HashMap<>();
+                
+                if (Files.exists(subDirPath)) {
+                    long fileCount = Files.walk(subDirPath)
+                        .filter(Files::isRegularFile)
+                        .count();
+                    
+                    long dirSize = Files.walk(subDirPath)
+                        .filter(Files::isRegularFile)
+                        .mapToLong(p -> {
+                            try {
+                                return Files.size(p);
+                            } catch (IOException e) {
+                                return 0;
+                            }
+                        })
+                        .sum();
+                    
+                    dirStats.put("fileCount", fileCount);
+                    dirStats.put("sizeBytes", dirSize);
+                    dirStats.put("sizeMB", dirSize / (1024 * 1024));
+                    
+                    totalFiles += fileCount;
+                    totalSize += dirSize;
+                } else {
+                    dirStats.put("fileCount", 0);
+                    dirStats.put("sizeBytes", 0);
+                    dirStats.put("sizeMB", 0);
+                }
+                
+                directoryStats.put(subDir, dirStats);
+            }
+            
+            stats.put("directoryStatistics", directoryStats);
+            stats.put("totalFiles", totalFiles);
+            stats.put("totalSizeBytes", totalSize);
+            stats.put("totalSizeMB", totalSize / (1024 * 1024));
+            stats.put("timestamp", LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+            
+            // Información del sistema de archivos
+            long freeSpace = uploadPath.toFile().getFreeSpace();
+            long totalSpace = uploadPath.toFile().getTotalSpace();
+            
+            stats.put("systemFreeSpaceBytes", freeSpace);
+            stats.put("systemTotalSpaceBytes", totalSpace);
+            stats.put("systemFreeSpaceMB", freeSpace / (1024 * 1024));
+            stats.put("systemTotalSpaceMB", totalSpace / (1024 * 1024));
+            stats.put("systemUsagePercent", ((totalSpace - freeSpace) * 100.0) / totalSpace);
+            
+        } catch (IOException e) {
+            stats.put("error", "Error calculating storage statistics: " + e.getMessage());
+        }
+        
+        return stats;
     }
 }

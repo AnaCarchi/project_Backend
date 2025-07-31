@@ -13,6 +13,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -28,7 +29,282 @@ public class ProductController {
     private final ProductService productService;
     private final FileService fileService;
 
-    // ENDPOINT MEJORADO PARA UPLOAD DE IMAGENES
+    // =================== ENDPOINTS DE LECTURA ===================
+
+    @GetMapping
+    public ResponseEntity<List<ProductDto>> getAllProducts() {
+        try {
+            List<Product> products = productService.getAllActiveProducts();
+            List<ProductDto> productDtos = products.stream()
+                    .map(productService::convertToDto)
+                    .collect(Collectors.toList());
+            return ResponseEntity.ok(productDtos);
+        } catch (Exception e) {
+            log.error("Error al obtener productos: ", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+    @GetMapping("/all")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<List<ProductDto>> getAllProductsAdmin() {
+        try {
+            List<Product> products = productService.getAllProducts();
+            List<ProductDto> productDtos = products.stream()
+                    .map(productService::convertToDto)
+                    .collect(Collectors.toList());
+            return ResponseEntity.ok(productDtos);
+        } catch (Exception e) {
+            log.error("Error al obtener todos los productos: ", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<ProductDto> getProductById(@PathVariable Long id) {
+        try {
+            Product product = productService.getProductById(id)
+                    .orElseThrow(() -> new RuntimeException("Producto no encontrado"));
+            return ResponseEntity.ok(productService.convertToDto(product));
+        } catch (RuntimeException e) {
+            return ResponseEntity.notFound().build();
+        } catch (Exception e) {
+            log.error("Error al obtener producto: ", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+    @GetMapping("/category/{categoryId}")
+    public ResponseEntity<List<ProductDto>> getProductsByCategory(@PathVariable Long categoryId) {
+        try {
+            List<Product> products = productService.getProductsByCategory(categoryId);
+            List<ProductDto> productDtos = products.stream()
+                    .map(productService::convertToDto)
+                    .collect(Collectors.toList());
+            return ResponseEntity.ok(productDtos);
+        } catch (Exception e) {
+            log.error("Error al obtener productos por categoría: ", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+    @GetMapping("/search")
+    public ResponseEntity<List<ProductDto>> searchProducts(@RequestParam String name) {
+        try {
+            List<Product> products = productService.searchProductsByName(name);
+            List<ProductDto> productDtos = products.stream()
+                    .map(productService::convertToDto)
+                    .collect(Collectors.toList());
+            return ResponseEntity.ok(productDtos);
+        } catch (Exception e) {
+            log.error("Error al buscar productos: ", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+    @GetMapping("/price-range")
+    public ResponseEntity<List<ProductDto>> getProductsByPriceRange(
+            @RequestParam BigDecimal minPrice, 
+            @RequestParam BigDecimal maxPrice) {
+        try {
+            List<Product> products = productService.getProductsByPriceRange(minPrice, maxPrice);
+            List<ProductDto> productDtos = products.stream()
+                    .map(productService::convertToDto)
+                    .collect(Collectors.toList());
+            return ResponseEntity.ok(productDtos);
+        } catch (Exception e) {
+            log.error("Error al obtener productos por rango de precio: ", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+    @GetMapping("/in-stock")
+    public ResponseEntity<List<ProductDto>> getProductsInStock() {
+        try {
+            List<Product> products = productService.getProductsInStock();
+            List<ProductDto> productDtos = products.stream()
+                    .map(productService::convertToDto)
+                    .collect(Collectors.toList());
+            return ResponseEntity.ok(productDtos);
+        } catch (Exception e) {
+            log.error("Error al obtener productos en stock: ", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+    @GetMapping("/low-stock")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<List<ProductDto>> getLowStockProducts(@RequestParam(defaultValue = "5") Integer minStock) {
+        try {
+            List<Product> products = productService.getLowStockProducts(minStock);
+            List<ProductDto> productDtos = products.stream()
+                    .map(productService::convertToDto)
+                    .collect(Collectors.toList());
+            return ResponseEntity.ok(productDtos);
+        } catch (Exception e) {
+            log.error("Error al obtener productos con stock bajo: ", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+    @GetMapping("/latest")
+    public ResponseEntity<List<ProductDto>> getLatestProducts() {
+        try {
+            List<Product> products = productService.getLatestProducts();
+            List<ProductDto> productDtos = products.stream()
+                    .map(productService::convertToDto)
+                    .collect(Collectors.toList());
+            return ResponseEntity.ok(productDtos);
+        } catch (Exception e) {
+            log.error("Error al obtener productos más recientes: ", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+    @GetMapping("/sorted-by-price")
+    public ResponseEntity<List<ProductDto>> getProductsSortedByPrice(@RequestParam(defaultValue = "asc") String order) {
+        try {
+            List<Product> products = productService.getProductsOrderByPrice(order);
+            List<ProductDto> productDtos = products.stream()
+                    .map(productService::convertToDto)
+                    .collect(Collectors.toList());
+            return ResponseEntity.ok(productDtos);
+        } catch (Exception e) {
+            log.error("Error al obtener productos ordenados por precio: ", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+    // =================== ENDPOINTS DE ESCRITURA ===================
+
+    @PostMapping
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<?> createProduct(@Valid @RequestBody ProductDto productDto) {
+        try {
+            log.info("Creando producto: {}", productDto.getName());
+            Product product = productService.createProduct(productDto);
+            ProductDto responseDto = productService.convertToDto(product);
+            log.info("Producto creado exitosamente con ID: {}", product.getId());
+            return ResponseEntity.status(HttpStatus.CREATED).body(responseDto);
+        } catch (RuntimeException e) {
+            log.error("Error de validación al crear producto: {}", e.getMessage());
+            return ResponseEntity.badRequest()
+                    .body(createErrorResponse(e.getMessage()));
+        } catch (Exception e) {
+            log.error("Error interno al crear producto: ", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(createErrorResponse("Error interno del servidor"));
+        }
+    }
+
+    @PutMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<?> updateProduct(@PathVariable Long id, @Valid @RequestBody ProductDto productDto) {
+        try {
+            log.info("Actualizando producto con ID: {}", id);
+            Product product = productService.updateProduct(id, productDto);
+            ProductDto responseDto = productService.convertToDto(product);
+            log.info("Producto actualizado exitosamente: {}", product.getName());
+            return ResponseEntity.ok(responseDto);
+        } catch (RuntimeException e) {
+            log.error("Error de validación al actualizar producto {}: {}", id, e.getMessage());
+            return ResponseEntity.badRequest()
+                    .body(createErrorResponse(e.getMessage()));
+        } catch (Exception e) {
+            log.error("Error interno al actualizar producto {}: ", id, e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(createErrorResponse("Error interno del servidor"));
+        }
+    }
+
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<?> deleteProduct(@PathVariable Long id) {
+        try {
+            log.info("Eliminando producto con ID: {}", id);
+            productService.deleteProduct(id);
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("message", "Producto eliminado exitosamente");
+            response.put("productId", id);
+            log.info("Producto eliminado exitosamente: ID {}", id);
+            return ResponseEntity.ok(response);
+        } catch (RuntimeException e) {
+            log.error("Error al eliminar producto {}: {}", id, e.getMessage());
+            return ResponseEntity.badRequest()
+                    .body(createErrorResponse(e.getMessage()));
+        } catch (Exception e) {
+            log.error("Error interno al eliminar producto {}: ", id, e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(createErrorResponse("Error interno del servidor"));
+        }
+    }
+
+    @PatchMapping("/{id}/toggle-status")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<?> toggleProductStatus(@PathVariable Long id) {
+        try {
+            log.info("Cambiando estado del producto con ID: {}", id);
+            productService.toggleProductStatus(id);
+            
+            // Obtener el producto actualizado para devolver el nuevo estado
+            Product product = productService.getProductById(id)
+                    .orElseThrow(() -> new RuntimeException("Producto no encontrado"));
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("message", "Estado del producto actualizado");
+            response.put("productId", id);
+            response.put("newStatus", product.getActive());
+            response.put("statusText", product.getActive() ? "Activo" : "Inactivo");
+            
+            log.info("Estado del producto {} cambiado a: {}", id, product.getActive() ? "Activo" : "Inactivo");
+            return ResponseEntity.ok(response);
+        } catch (RuntimeException e) {
+            log.error("Error al cambiar estado del producto {}: {}", id, e.getMessage());
+            return ResponseEntity.badRequest()
+                    .body(createErrorResponse(e.getMessage()));
+        } catch (Exception e) {
+            log.error("Error interno al cambiar estado del producto {}: ", id, e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(createErrorResponse("Error interno del servidor"));
+        }
+    }
+
+    @PatchMapping("/{id}/stock")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<?> updateProductStock(@PathVariable Long id, @RequestBody Map<String, Integer> request) {
+        try {
+            Integer newStock = request.get("stock");
+            if (newStock == null || newStock < 0) {
+                return ResponseEntity.badRequest()
+                        .body(createErrorResponse("Stock debe ser un número mayor o igual a 0"));
+            }
+            
+            log.info("Actualizando stock del producto {} a {}", id, newStock);
+            Product product = productService.updateStock(id, newStock);
+            ProductDto responseDto = productService.convertToDto(product);
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("message", "Stock actualizado exitosamente");
+            response.put("product", responseDto);
+            
+            log.info("Stock del producto {} actualizado a {}", id, newStock);
+            return ResponseEntity.ok(response);
+        } catch (RuntimeException e) {
+            log.error("Error al actualizar stock del producto {}: {}", id, e.getMessage());
+            return ResponseEntity.badRequest()
+                    .body(createErrorResponse(e.getMessage()));
+        } catch (Exception e) {
+            log.error("Error interno al actualizar stock del producto {}: ", id, e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(createErrorResponse("Error interno del servidor"));
+        }
+    }
+
+    // =================== ENDPOINTS DE IMÁGENES ===================
+
     @PostMapping("/{id}/image")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> uploadProductImage(@PathVariable Long id, 
@@ -75,7 +351,7 @@ public class ProductController {
             log.info("Validaciones pasadas, procediendo a guardar archivo...");
 
             // 4. GUARDAR ARCHIVO
-            String fileName = fileService.saveFile(file);
+            String fileName = fileService.saveProductImage(file);
             log.info("Archivo guardado como: {}", fileName);
             
             // 5. GENERAR URL DE ACCESO
@@ -116,20 +392,51 @@ public class ProductController {
         }
     }
 
-    // ENDPOINT DE PRUEBA PARA VERIFICAR CONECTIVIDAD
-    @GetMapping("/test-upload")
-    public ResponseEntity<Map<String, Object>> testUpload() {
-        Map<String, Object> response = new HashMap<>();
-        response.put("status", "OK");
-        response.put("message", "Endpoint de upload funcionando");
-        response.put("uploadEndpoint", "/api/products/{id}/image");
-        response.put("method", "POST");
-        response.put("contentType", "multipart/form-data");
-        response.put("parameterName", "file");
-        return ResponseEntity.ok(response);
+    @DeleteMapping("/{id}/image")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<?> deleteProductImage(@PathVariable Long id) {
+        try {
+            Product product = productService.getProductById(id)
+                    .orElseThrow(() -> new RuntimeException("Producto no encontrado"));
+            
+            String currentImageUrl = product.getImageUrl();
+            if (currentImageUrl == null || currentImageUrl.isEmpty()) {
+                return ResponseEntity.badRequest()
+                        .body(createErrorResponse("El producto no tiene imagen para eliminar"));
+            }
+            
+            // Extraer nombre del archivo de la URL
+            String fileName = currentImageUrl.replace("/uploads/", "");
+            
+            // Eliminar archivo del sistema
+            fileService.deleteFile(fileName);
+            
+            // Actualizar producto sin imagen
+            ProductDto productDto = productService.convertToDto(product);
+            productDto.setImageUrl(null);
+            productService.updateProduct(id, productDto);
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("message", "Imagen eliminada exitosamente");
+            response.put("productId", id);
+            
+            log.info("Imagen eliminada del producto: {}", id);
+            return ResponseEntity.ok(response);
+            
+        } catch (RuntimeException e) {
+            log.error("Error al eliminar imagen del producto {}: {}", id, e.getMessage());
+            return ResponseEntity.badRequest()
+                    .body(createErrorResponse(e.getMessage()));
+        } catch (Exception e) {
+            log.error("Error interno al eliminar imagen del producto {}: ", id, e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(createErrorResponse("Error interno del servidor"));
+        }
     }
 
-    // ENDPOINT PARA VERIFICAR UN PRODUCTO ESPECÍFICO
+    // =================== ENDPOINTS DE INFORMACIÓN Y ESTADÍSTICAS ===================
+
     @GetMapping("/{id}/info")
     public ResponseEntity<?> getProductInfo(@PathVariable Long id) {
         try {
@@ -139,8 +446,16 @@ public class ProductController {
             Map<String, Object> info = new HashMap<>();
             info.put("id", product.getId());
             info.put("name", product.getName());
+            info.put("description", product.getDescription());
+            info.put("price", product.getPrice());
+            info.put("stock", product.getStock());
+            info.put("active", product.getActive());
+            info.put("categoryId", product.getCategory().getId());
+            info.put("categoryName", product.getCategory().getName());
             info.put("currentImageUrl", product.getImageUrl());
             info.put("hasImage", product.getImageUrl() != null);
+            info.put("createdAt", product.getCreatedAt());
+            info.put("updatedAt", product.getUpdatedAt());
             info.put("uploadEndpoint", "/api/products/" + id + "/image");
             
             return ResponseEntity.ok(info);
@@ -150,7 +465,26 @@ public class ProductController {
         }
     }
 
-    // Método helper para crear respuestas de error consistentes
+    @GetMapping("/stats")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Map<String, Object>> getProductStats() {
+        try {
+            Map<String, Object> stats = new HashMap<>();
+            stats.put("totalProducts", productService.getAllProducts().size());
+            stats.put("activeProducts", productService.getTotalActiveProducts());
+            stats.put("totalStock", productService.getTotalStock());
+            stats.put("lowStockProducts", productService.getLowStockProducts(5).size());
+            
+            return ResponseEntity.ok(stats);
+        } catch (Exception e) {
+            log.error("Error al obtener estadísticas de productos: ", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+
+    // =================== MÉTODOS HELPER ===================
+
     private Map<String, Object> createErrorResponse(String message) {
         Map<String, Object> error = new HashMap<>();
         error.put("success", false);
@@ -159,40 +493,5 @@ public class ProductController {
         error.put("timestamp", java.time.LocalDateTime.now().format(
                 java.time.format.DateTimeFormatter.ISO_LOCAL_DATE_TIME));
         return error;
-    }
-
-    // RESTO DE ENDPOINTS ORIGINALES...
-    @GetMapping
-    public ResponseEntity<List<ProductDto>> getAllProducts() {
-        try {
-            List<Product> products = productService.getAllActiveProducts();
-            List<ProductDto> productDtos = products.stream()
-                    .map(productService::convertToDto)
-                    .collect(Collectors.toList());
-            return ResponseEntity.ok(productDtos);
-        } catch (Exception e) {
-            log.error("Error al obtener productos: ", e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
-        }
-    }
-
-    @PostMapping
-    @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<?> createProduct(@Valid @RequestBody ProductDto productDto) {
-        try {
-            log.info("Creando producto: {}", productDto.getName());
-            Product product = productService.createProduct(productDto);
-            ProductDto responseDto = productService.convertToDto(product);
-            log.info("Producto creado exitosamente con ID: {}", product.getId());
-            return ResponseEntity.status(HttpStatus.CREATED).body(responseDto);
-        } catch (RuntimeException e) {
-            log.error("Error de validación al crear producto: {}", e.getMessage());
-            return ResponseEntity.badRequest()
-                    .body(createErrorResponse(e.getMessage()));
-        } catch (Exception e) {
-            log.error("Error interno al crear producto: ", e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(createErrorResponse("Error interno del servidor"));
-        }
     }
 }
