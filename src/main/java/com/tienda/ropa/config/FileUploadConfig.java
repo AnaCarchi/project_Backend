@@ -6,7 +6,6 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.multipart.MultipartResolver;
 import org.springframework.web.multipart.support.StandardServletMultipartResolver;
-import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
@@ -44,17 +43,8 @@ public class FileUploadConfig implements WebMvcConfigurer {
         log.info("   Ejemplo URL: http://localhost:8080/uploads/products/imagen.jpg");
     }
 
-    @Override
-    public void addCorsMappings(CorsRegistry registry) {
-        registry.addMapping("/**")
-                .allowedOriginPatterns("*")
-                .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
-                .allowedHeaders("*")
-                .allowCredentials(true)
-                .maxAge(3600);
-        
-        log.info("CORS configurado para todos los endpoints");
-    }
+    // REMOVER EL MÉTODO addCorsMappings DE AQUÍ PARA EVITAR CONFLICTOS
+    // EL CORS ESTÁ MANEJADO EN CorsConfig.java Y SecurityConfig.java
 
     @Bean
     public MultipartResolver multipartResolver() {
