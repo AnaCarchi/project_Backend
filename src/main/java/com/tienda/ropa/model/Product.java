@@ -5,10 +5,10 @@ import jakarta.validation.constraints.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.Set;
 
 @Entity
 @Table(name = "products")
@@ -53,18 +53,10 @@ public class Product {
     private LocalDateTime updatedAt;
     
     // Relación muchos a uno con categoría
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "category_id", nullable = false)
+    @JsonIgnore
     private Category category;
-    
-    // Relación muchos a muchos con categorías adicionales
-    @ManyToMany(fetch = FetchType.LAZY)
-    @JoinTable(
-        name = "product_categories",
-        joinColumns = @JoinColumn(name = "product_id"),
-        inverseJoinColumns = @JoinColumn(name = "category_id")
-    )
-    private Set<Category> additionalCategories;
     
     @PrePersist
     protected void onCreate() {
