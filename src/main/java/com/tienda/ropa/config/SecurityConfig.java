@@ -41,14 +41,39 @@ public class SecurityConfig {
         http.csrf(AbstractHttpConfigurer::disable)
                 .cors(cors -> cors.configurationSource(corsConfigurationSource))
                 .authorizeHttpRequests(auth -> auth
+                        // Endpoints públicos
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers("/api/public/**").permitAll()
+                        
+                        // ⚠️ IMPORTANTE: Permitir acceso a archivos estáticos
                         .requestMatchers("/uploads/**").permitAll()
+                        
+                        // Endpoints de desarrollo
                         .requestMatchers("/h2-console/**").permitAll()
                         .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
                         .requestMatchers("/error").permitAll()
                         .requestMatchers("/health/**").permitAll()
                         .requestMatchers("/actuator/**").permitAll()
+                        
+                        // Endpoints de productos (lectura para usuarios, escritura para admins)
+                        .requestMatchers("GET", "/api/products/**").hasAnyRole("USER", "ADMIN")
+                        .requestMatchers("POST", "/api/products/**").hasRole("ADMIN")
+                        .requestMatchers("PUT", "/api/products/**").hasRole("ADMIN")
+                        .requestMatchers("DELETE", "/api/products/**").hasRole("ADMIN")
+                        .requestMatchers("PATCH", "/api/products/**").hasRole("ADMIN")
+                        
+                        // Endpoints de categorías (lectura para usuarios, escritura para admins)
+                        .requestMatchers("GET", "/api/categories/**").hasAnyRole("USER", "ADMIN")
+                        .requestMatchers("POST", "/api/categories/**").hasRole("ADMIN")
+                        .requestMatchers("PUT", "/api/categories/**").hasRole("ADMIN")
+                        .requestMatchers("DELETE", "/api/categories/**").hasRole("ADMIN")
+                        .requestMatchers("PATCH", "/api/categories/**").hasRole("ADMIN")
+                        
+                        // Endpoints de administración
+                        .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                        .requestMatchers("/api/reports/**").hasRole("ADMIN")
+                        
+                        // Todo lo demás requiere autenticación
                         .anyRequest().authenticated()
                 )
                 .exceptionHandling(ex -> ex.authenticationEntryPoint(jwtAuthenticationEntryPoint))
