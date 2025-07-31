@@ -22,15 +22,22 @@ public class FileUploadConfig implements WebMvcConfigurer {
     public void init() {
         createUploadDirIfNotExists();
         validateUploadDirectory();
+        logConfiguration();
     }
 
     @Override
     public void addResourceHandlers(ResourceHandlerRegistry registry) {
+        String absolutePath = getAbsoluteUploadPath();
+        
+        // Configurar handler para archivos estáticos
         registry.addResourceHandler("/uploads/**")
-                .addResourceLocations("file:" + getAbsoluteUploadPath() + "/")
+                .addResourceLocations("file:" + absolutePath + "/")
                 .setCachePeriod(3600);
         
-        log.info("✅ Configurado handler de archivos estáticos: /uploads/** -> {}", getAbsoluteUploadPath());
+        log.info("🌐 Configurado handler de archivos estáticos:");
+        log.info("   URL Pattern: /uploads/**");
+        log.info("   File Location: file:{}/", absolutePath);
+        log.info("   Ejemplo URL: http://localhost:8080/uploads/products/imagen.jpg");
     }
 
     private void createUploadDirIfNotExists() {
@@ -43,6 +50,7 @@ public class FileUploadConfig implements WebMvcConfigurer {
                 createSubDirectories(uploadPath);
             } else {
                 log.info("📁 Directorio de uploads ya existe: {}", uploadPath);
+                createSubDirectories(uploadPath);
             }
             
         } catch (Exception e) {
@@ -59,7 +67,7 @@ public class FileUploadConfig implements WebMvcConfigurer {
                 Path subDirPath = uploadPath.resolve(subDir);
                 if (!Files.exists(subDirPath)) {
                     Files.createDirectories(subDirPath);
-                    log.debug("📁 Subdirectorio creado: {}", subDirPath);
+                    log.info("📁 Subdirectorio creado: {}", subDirPath);
                 }
             }
             
@@ -90,6 +98,25 @@ public class FileUploadConfig implements WebMvcConfigurer {
         } catch (Exception e) {
             log.error("❌ Error validando directorio de uploads: {}", e.getMessage());
             throw new RuntimeException("Directorio de uploads no válido", e);
+        }
+    }
+
+    private void logConfiguration() {
+        String absolutePath = getAbsoluteUploadPath();
+        log.info("🔧 CONFIGURACIÓN DE ARCHIVOS:");
+        log.info("   Upload Directory: {}", absolutePath);
+        log.info("   URL Base: http://localhost:8080/uploads/");
+        log.info("   Directorio writable: {}", Files.isWritable(Paths.get(absolutePath)));
+        
+        // Listar archivos existentes
+        try {
+            Path productsPath = Paths.get(absolutePath, "products");
+            if (Files.exists(productsPath)) {
+                long fileCount = Files.list(productsPath).count();
+                log.info("   Archivos en products: {}", fileCount);
+            }
+        } catch (Exception e) {
+            log.warn("   No se pudo contar archivos en products: {}", e.getMessage());
         }
     }
 

@@ -57,52 +57,55 @@ public class AuthController {
     private final Map<String, FailedAttempt> failedAttempts = new ConcurrentHashMap<>();
 
     @PostMapping("/login")
-    public ResponseEntity<?> login(@Valid @RequestBody LoginRequest loginRequest) {
-        try {
-            authenticationManager.authenticate(
-                    new UsernamePasswordAuthenticationToken(
-                            loginRequest.getUsername(),
-                            loginRequest.getPassword()
-                    )
-            );
+public ResponseEntity<?> login(@Valid @RequestBody LoginRequest loginRequest) {
+    try {
+        // Autenticar credenciales
+        authenticationManager.authenticate(
+                new UsernamePasswordAuthenticationToken(
+                        loginRequest.getUsername(),
+                        loginRequest.getPassword()
+                )
+        );
 
-            UserDetails userDetails = userService.loadUserByUsername(loginRequest.getUsername());
-            String token = jwtUtil.generateToken(userDetails);
+        // Cargar detalles del usuario
+        UserDetails userDetails = userService.loadUserByUsername(loginRequest.getUsername());
+        String token = jwtUtil.generateToken(userDetails);
 
-            User user = userService.getUserByUsername(loginRequest.getUsername())
-                    .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
+        // Obtener usuario completo
+        User user = userService.getUserByUsername(loginRequest.getUsername())
+                .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
 
-            String role = user.getRoles().stream()
-                    .map(r -> r.getName().name())
-                    .findFirst()
-                    .orElse("ROLE_USER");
+        // CORRECCIÓN: Obtener el rol correctamente
+        String role = user.getRoles().stream()
+                .map(r -> r.getName().name()) // Esto devuelve "ROLE_ADMIN" o "ROLE_USER"
+                .findFirst()
+                .orElse("ROLE_USER");
 
-            AuthResponse authResponse = AuthResponse.builder()
-                    .token(token)
-                    .username(user.getUsername())
-                    .email(user.getEmail())
-                    .role(role)
-                    .userId(user.getId())
-                    .build();
+        AuthResponse authResponse = AuthResponse.builder()
+                .token(token)
+                .username(user.getUsername())
+                .email(user.getEmail())
+                .role(role) 
+                .userId(user.getId())
+                .build();
 
-            log.info("Login exitoso para usuario: {} [{}]", user.getUsername(), role);
-            return ResponseEntity.ok(authResponse);
+        log.info("Login exitoso para usuario: {} [{}]", user.getUsername(), role);
+        return ResponseEntity.ok(authResponse);
 
-        } catch (DisabledException e) {
-            log.warn("Usuario deshabilitado intentó hacer login: {}", loginRequest.getUsername());
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body(createErrorResponse("Usuario deshabilitado"));
-        } catch (BadCredentialsException e) {
-            log.warn("Credenciales inválidas para usuario: {}", loginRequest.getUsername());
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body(createErrorResponse("Credenciales inválidas"));
-        } catch (Exception e) {
-            log.error("Error durante el login: ", e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(createErrorResponse("Error interno del servidor"));
-        }
+    } catch (DisabledException e) {
+        log.warn("Usuario deshabilitado intentó hacer login: {}", loginRequest.getUsername());
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .body(createErrorResponse("Usuario deshabilitado"));
+    } catch (BadCredentialsException e) {
+        log.warn("Credenciales inválidas para usuario: {}", loginRequest.getUsername());
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .body(createErrorResponse("Credenciales inválidas"));
+    } catch (Exception e) {
+        log.error("Error durante el login: ", e);
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(createErrorResponse("Error interno del servidor"));
     }
-
+}
     @PostMapping("/register")
     public ResponseEntity<?> register(@Valid @RequestBody RegisterRequest registerRequest, 
                                      HttpServletRequest request) {
